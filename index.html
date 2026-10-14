@@ -10,6 +10,7 @@
 body{margin:0;background:radial-gradient(ellipse at top,#0b2229 0,#04090d 70%);color:var(--text);font-family:Consolas,"Yu Gothic UI",Meiryo,monospace}
 header{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:12px 18px;border:1px solid #173a42;background:#071318;box-shadow:0 0 18px #00d9cc16}
 .brand{font-size:clamp(19px,2vw,28px);font-weight:800;letter-spacing:.04em;color:#26e4ad;margin-right:auto}
+#resetBtn{margin-left:auto;white-space:nowrap}
 .brand span{color:#7af9ee}
 button,select{font:inherit;font-size:17px;color:var(--text);background:#13252d;border:1px solid #4b6b76;border-radius:7px;padding:10px 14px}
 button{cursor:pointer}button:hover{border-color:var(--cyan)}button:disabled{opacity:.45;cursor:not-allowed}
@@ -49,6 +50,7 @@ footer{color:#76969d;font-size:11px;padding:0 16px 16px}
 <body>
 <header>
   <div class="brand">〰 <span>SPECTRUM</span> ANALYZER</div>
+  <button id="resetBtn" type="button">↺ リセット</button>
   <button id="startBtn" class="primary" hidden>▶ 開始</button>
   <label class="control" hidden style="display:none">FFTサイズ
     <select id="fftSize"><option>16384</option></select>
@@ -186,6 +188,17 @@ footer{color:#76969d;font-size:11px;padding:0 16px 16px}
         specCtx.lineWidth=3;specCtx.strokeStyle='#041015';specCtx.strokeText(item.label,best.x,best.y);
         specCtx.fillStyle=colors[item.i];specCtx.fillText(item.label,best.x,best.y);
       });
+      // 表示範囲内の上位5ピークを、周波数の小さい順に右上へ表示
+      const topPeaks=findPeaks(holdData || freqData,binHz,Math.max(minF,binHz),Math.min(maxF,nyquist),floor)
+        .sort((a,b)=>a.f-b.f);
+      const listText=topPeaks.map(p=>formatFreq(p.f)).join('  |  ');
+      specCtx.save();
+      specCtx.font='bold 12px Consolas, monospace';
+      specCtx.textAlign='right'; specCtx.textBaseline='top';
+      const listWidth=specCtx.measureText(listText).width;
+      specCtx.fillStyle='#041015'; specCtx.fillRect(w-m.r-listWidth-12,m.t+3,listWidth+10,19);
+      specCtx.fillStyle='#ffe34a'; specCtx.fillText(listText,w-m.r-5,m.t+6);
+      specCtx.restore();
       currentBins={m,w,h,minF,maxF,floor,binHz};
     }
   }
@@ -253,6 +266,13 @@ footer{color:#76969d;font-size:11px;padding:0 16px 16px}
     drawSpectrum();drawWave();
   }
   $('startBtn').addEventListener('click',()=>{if(!analyser)start();});
+  $('resetBtn').addEventListener('click',async()=>{
+    if(analyser || stream || audioCtx) await stop();
+    paused=false; spectrumOffset=0; timeOffset=0;
+    $('freqRange').value=500; $('freqRangeValue').textContent='500 Hz';
+    $('timeRange').value=20; $('timeRangeValue').textContent='20 ms';
+    drawSpectrum(); drawWave();
+  });
   function toggleCapture(){
     if(!analyser){start();return;}
     if(paused){paused=false;tick();}else{paused=true;cancelAnimationFrame(raf);raf=0;}
