@@ -154,50 +154,24 @@ footer{color:#76969d;font-size:11px;padding:0 16px 16px}
         specCtx.strokeStyle='#ffe34a';specCtx.lineWidth=1;specCtx.setLineDash([4,4]);specCtx.stroke();specCtx.setLineDash([]);
       }
       const peaks=findPeaks(holdData || freqData,binHz,Math.max(minF,binHz),Math.min(maxF,nyquist),floor);
-      // ラベルはプロット領域内に収め、重なりがあれば上下段へ配置する
-      const labelItems=peaks.map((p,i)=>{
-        const x=freqToX(p.f,minF,maxF,m,w),y=m.t+(0-Math.max(floor,Math.min(0,p.db)))/(0-floor)*(h-m.t-m.b);
-        return {p,i,x,y,label:formatFreq(p.f)};
-      }).sort((a,b)=>a.x-b.x);
-      const placed=[];
-      labelItems.forEach(item=>{
-        specCtx.beginPath();specCtx.arc(item.x,item.y,4,0,Math.PI*2);specCtx.fillStyle=colors[item.i];specCtx.fill();
-        specCtx.font='bold 16px Consolas, monospace';
-        const labelW=specCtx.measureText(item.label).width, labelH=17;
-        const left=m.l+3, right=w-m.r-3-labelW, top=m.t+labelH, bottom=h-m.b-3;
-        const candidates=[];
-        // ピークの上下を起点に、グラフ内の複数段を候補にする
-        for(let row=0;row<Math.ceil((bottom-top)/19);row++){
-          const up=item.y-10-row*19, down=item.y+20+row*19;
-          if(up>=top)candidates.push(up);
-          if(down<=bottom)candidates.push(down);
-        }
-        if(!candidates.length)candidates.push(Math.max(top,Math.min(bottom,item.y-8)));
-        let best=null,bestScore=Infinity;
-        for(const ty0 of candidates){
-          for(const tx0 of [item.x+7,item.x-labelW-7,item.x-labelW/2]){
-            const tx=Math.max(left,Math.min(right,tx0));
-            const overlap=placed.some(q=>tx<q.x+q.w+4 && tx+labelW+4>q.x && ty0<q.y+labelH+2 && ty0+2>q.y);
-            const score=(overlap?100000:0)+Math.abs(ty0-(item.y-10))+Math.abs((tx+labelW/2)-item.x)*0.15;
-            if(score<bestScore){bestScore=score;best={x:tx,y:ty0,w:labelW};}
-          }
-          if(bestScore<100000)break;
-        }
-        if(!best)best={x:Math.max(left,Math.min(right,item.x-labelW/2)),y:Math.max(top,Math.min(bottom,item.y-8)),w:labelW};
-        placed.push(best);
-        specCtx.lineWidth=3;specCtx.strokeStyle='#041015';specCtx.strokeText(item.label,best.x,best.y);
-        specCtx.fillStyle=colors[item.i];specCtx.fillText(item.label,best.x,best.y);
+      // ピーク位置には色付きの印だけを表示（周波数ラベルは右上の一覧に集約）
+      peaks.forEach((p,i)=>{
+        const x=freqToX(p.f,minF,maxF,m,w), y=m.t+(0-Math.max(floor,Math.min(0,p.db)))/(0-floor)*(h-m.t-m.b);
+        specCtx.beginPath();specCtx.arc(x,y,4,0,Math.PI*2);specCtx.fillStyle=colors[i];specCtx.fill();
       });
-      // 表示範囲内の上位5ピークを、周波数の小さい順に右上へ表示
-      const topPeaks=findPeaks(holdData || freqData,binHz,Math.max(minF,binHz),Math.min(maxF,nyquist),floor)
-        .sort((a,b)=>a.f-b.f);
-      const listText=topPeaks.map(p=>formatFreq(p.f)).join('  |  ');
+      // 表示範囲内の上位5ピークを、右上に周波数の小さい順で縦に表示
+      const topPeaks=peaks.slice().sort((a,b)=>a.f-b.f);
       specCtx.save();
-      specCtx.font='bold 12px Consolas, monospace';
+      specCtx.font='bold 16px Consolas, monospace';
       specCtx.textAlign='right'; specCtx.textBaseline='top';
-      const listWidth=specCtx.measureText(listText).width;
-      specCtx.fillStyle='#041015'; specCtx.fillRect(w-m.r-listWidth-12,m.t+3,listWidth+10,19);
-      specCtx.fillStyle='#ffe34a'; specCtx.fillText(listText,w-m.r-5,m.t+6);
+      const rowHeight=21, listX=w-m.r-7, listY=m.t+5;
+      const listWidth=Math.max(...topPeaks.map(p=>specCtx.measureText(formatFreq(p.f)).width),0);
+      specCtx.fillStyle='#041015'; specCtx.fillRect(listX-listWidth-24,listY-3,listWidth+31,topPeaks.length*rowHeight+5);
+      topPeaks.forEach(p=>{
+        const rank=peaks.indexOf(p), y=listY+topPeaks.indexOf(p)*rowHeight;
+        specCtx.beginPath();specCtx.arc(listX-listWidth-14,y+8,4,0,Math.PI*2);specCtx.fillStyle=colors[rank];specCtx.fill();
+        specCtx.fillStyle=colors[rank];specCtx.fillText(formatFreq(p.f),listX,y);
+      });
       specCtx.restore();
       currentBins={m,w,h,minF,maxF,floor,binHz};
     }
